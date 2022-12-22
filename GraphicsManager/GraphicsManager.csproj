@@ -1,0 +1,20 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+	<EmbeddedResource Include="Resources/**"></EmbeddedResource>
+  </ItemGroup>
+
+  <ItemGroup>
+	<PackageReference Include="OpenTK" Version="4.7.1" />
+	<PackageReference Include="SharpFontCore" Version="0.1.1" />
+	<PackageReference Include="SixLabors.ImageSharp" Version="1.0.4" />
+	<PackageReference Include="SpaceWizards.SharpFont" Version="1.0.1" />
+  </ItemGroup>
+	
+</Project>
