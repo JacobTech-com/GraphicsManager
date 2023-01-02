@@ -9,6 +9,8 @@ namespace GraphicsManager;
 
 public class Window : NativeWindow , IParent
 {
+	public IParent? Parent { get; } = null;
+	public Vector2 LocationAsFloat { get; } = new Vector2(0f, 0f);
 	public Window(NativeWindowSettings nativeWindowSettings) : base(nativeWindowSettings)
 	{
 	}
@@ -42,6 +44,11 @@ public class Window : NativeWindow , IParent
                 IntToFloat(x), IntToFloat(y, true), z,// top l
             };
 		}
+	}
+
+	public Vector3 PointToVector(int x, int y, float z = 0.0f)
+	{
+		return new Vector3(IntToFloat(x), IntToFloat(y, true), z);
 	}
 
 	public float IntToFloat(int p, bool Invert = false)
@@ -96,53 +103,60 @@ public class Window : NativeWindow , IParent
 	}
 #endregion
 
-	public void Resize(ResizeEventArgs e)
+	public void ParentResize(ResizeEventArgs e)
 	{
 		if (e.Width == 0 && e.Height == 0) return;
 		base.OnResize(e);
 		GL.Viewport(0, 0, e.Width, e.Height);
 		foreach (IRenderObject Control in Controls)
 		{
-			if (Control.Loaded)
+			if (!Control.Loaded) continue;
+			bool top = (Control.Anchor & ObjectAnchor.Top) == ObjectAnchor.Top;
+			bool left = (Control.Anchor & ObjectAnchor.Left) == ObjectAnchor.Left;
+			bool right = (Control.Anchor & ObjectAnchor.Right) == ObjectAnchor.Right;
+			bool bottom = (Control.Anchor & ObjectAnchor.Bottom) == ObjectAnchor.Bottom;
+			if (!top && !bottom) { Control.Anchor |= ObjectAnchor.Top; top = true; }
+			if (!left && !right) { Control.Anchor |= ObjectAnchor.Left; left = true; }
+			int lx = (left ? Control.Location.X : Size.X - Control.Distance.X - Control.Size.X);
+			int ly = (top ? Control.Location.Y : Size.Y - Control.Distance.Y - Control.Size.Y);
+			int sy = (bottom ? Size.Y - Control.Distance.Y - ly : Control.Size.Y);
+			int sx = (right ? Size.X - Control.Distance.X - lx : Control.Size.X);
+			Control.Size = new(sx, sy);
+			Control.Location = new(lx, ly);
+			if (Control is IParent parent)
 			{
-				bool top = (Control.Anchor & ObjectAnchor.Top) == ObjectAnchor.Top;
-				bool left = (Control.Anchor & ObjectAnchor.Left) == ObjectAnchor.Left;
-				bool right = (Control.Anchor & ObjectAnchor.Right) == ObjectAnchor.Right;
-				bool bottom = (Control.Anchor & ObjectAnchor.Bottom) == ObjectAnchor.Bottom;
-				if (!top && !bottom) { Control.Anchor |= ObjectAnchor.Top; top = true; }
-				if (!left && !right) { Control.Anchor |= ObjectAnchor.Left; left = true; }
-				int lx = (left ? Control.Location.X : Size.X - Control.Distance.X - Control.Size.X);
-				int ly = (top ? Control.Location.Y : Size.Y - Control.Distance.Y - Control.Size.Y);
-				int sy = (bottom ? Size.Y - Control.Distance.Y - ly : Control.Size.Y);
-				int sx = (right ? Size.X - Control.Distance.X - lx : Control.Size.X);
-				Control.Size = new(sx, sy);
-				Control.Location = new(lx, ly);
-				if (Control is IParent)
-				{
-					IParent parent = (IParent)Control;
-					parent.Resize(e);
-				}
+				parent.ParentResize(e);
 			}
 		}
 	}
 
 	protected override void OnResize(ResizeEventArgs e)
 	{
-		Resize(e);
+		ParentResize(e);
 	}
+
+	public Rendertype Rendertype { get; set; } = Rendertype.ControlUpdates;
+
+	internal bool CanControleUpdate { get; private set; } = true;
+
+	public int FPS { get; set; } = 0;
 
 	public void StartRender()
 	{
 		Context.MakeCurrent();
+		ProcessEvents();
+		DrawFrame();
 		while (Exists && IsVisible && !IsExiting)
 		{
-			DrawFrame();
+			ProcessEvents();
+			bool u = (Rendertype & Rendertype.ControlUpdates) == Rendertype.ControlUpdates;
+			if (!u) DrawFrame();
+			Thread.Sleep(8);
 		}
 	}
 
 	public void DrawFrame()
 	{
-		ProcessEvents();
 		GL.ClearColor(BackgroundColor.R, BackgroundColor.G, BackgroundColor.B, (BackgroundColor.A * -1) + 1);
 		IEnumerable<IRenderObject> needload = Controls.Where(a => a.Loaded == false);
 		
@@ -160,6 +174,6 @@ public class Window : NativeWindow , IParent
 			if (obj.Loaded) obj.Draw();
 		}
 		Context.SwapBuffers();
-		Thread.Sleep(8);
+		
 	}
 }

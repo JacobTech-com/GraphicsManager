@@ -1,5 +1,6 @@
 ﻿namespace GraphicsManager.Enums;
 
+[Flags]
 public enum ObjectAnchor
 {
 	Left = 0b_0001,

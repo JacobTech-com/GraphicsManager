@@ -5,7 +5,6 @@ using GraphicsManager.Structs;
 using OpenTK.Graphics.OpenGL4;
 using OpenTK.Mathematics;
 using SharpFont;
-using System.Reflection;
 using Encoding = SharpFont.Encoding;
 
 namespace GraphicsManager.Objects;
@@ -31,33 +30,25 @@ public class Label : IRenderObject
 		get => text;
 		set
 		{
+			text = value;
 			if (Loaded)
 			{
-				Library lib = new();
-				Face face = new(lib, Font.GetData(), 0);
-
-				face.SetPixelSizes(0, PixelHeight);
-
 				GL.PixelStore(PixelStoreParameter.UnpackAlignment, 1);
-
-				face.SelectCharmap(Encoding.Unicode);
 				if (!_characters.ContainsKey(this)) _characters.Add(this, new Dictionary<uint, Character>());
 				foreach (char character in value)
 				{
-					if (_characters[this].ContainsKey(character) == false)
-					{
-						var f = new Texture(this, character, PixelHeight, face);
-						f.LoadText();
-					}
+					if (_characters[this].ContainsKey(character)) continue;
+					var f = Texture.TextureForChar(this, character, PixelHeight, Font.Faces.ToArray());
+					f.LoadText();
 				}
+				if (Window is not null && Window.CanControleUpdate && Loaded) Window.DrawFrame();
 			}
-			text = value;
 		}
 	}
 	public uint PixelHeight { get; set; } = 20;
-	public float Scale { get; set; } = 1.2f;
-	public Shader Shader { get; } = DefaultTextShader;
-	public Font Font { get; set; } = Font.MakeEmbeddedFont("TektonPro-Regular.otf");
+	public float Scale { get; set; } = 1.0f;
+	public Shader Shader { get; set; } = DefaultTextShader;
+	public Font Font { get; set; } = Font.MakeFontFromSystem();
 
 	public Vector4 Color { get; set; } = new Vector4(1, 1, 1, 1);
 	public Vector2i Distance { get; private set; }
@@ -71,10 +62,10 @@ public class Label : IRenderObject
 		}
 		set
 		{
-
 			loc_ = value;
 			if (Window is null || Parent is null) return;
-			locc_ = new(value.X + Parent.Position.X, value.Y + Parent.Position.Y);
+			locc_ = new((int)Window.FloatToInt(Parent.IntToFloat(value.X)), (int)Window.FloatToInt(Parent.IntToFloat(value.Y, true), true));
+			if (Window.CanControleUpdate && Loaded) Window.DrawFrame();
 		}
 	}
 	public Vector2i Size { get; set; }
@@ -86,7 +77,7 @@ public class Label : IRenderObject
 
 	public void Draw()
 	{
-		if (Visible & loadd)
+		if (Visible & Loaded)
 		{
 			Shader.Use();
 			GL.Enable(EnableCap.Blend);
@@ -103,19 +94,10 @@ public class Label : IRenderObject
 			Matrix4 transOriginM = Matrix4.CreateTranslation(new Vector3(locc_.X, locc_.Y, 0f));
 
 			float char_x = 0.0f;
-
-			Library lib = new();
-
-			Face face = new(lib, Font.GetData(), 0);
-
-			face.SetPixelSizes(0, PixelHeight);
-
+			
 			GL.PixelStore(PixelStoreParameter.UnpackAlignment, 1);
-
 			GL.ActiveTexture(TextureUnit.Texture0);
-			face.SelectCharmap(Encoding.Unicode);
-
-
+			
 			float hhh = 0f;
 			foreach (char c in Text)
 			{
@@ -155,16 +137,16 @@ public class Label : IRenderObject
 
 	public void LoadToParent(IParent window, Window win)
 	{
+		if (Loaded) return;
+		if (!_characters.ContainsKey(this)) _characters.Add(this, new Dictionary<uint, Character>());
 		Parent = window;
 		Window = win;
-		//X = window.FloatToInt(X, window.Size.X);
-		//Y = window.FloatToInt(Y, window.Size.Y, true);
 		Library lib = new();
 
-		Face face = new(lib, Font.GetData(), 0);
-		face.SetPixelSizes(0, PixelHeight);
+		//Face face = new(lib, Font.Faces.First(), 0);
+		//face.SetPixelSizes(0, PixelHeight);
 		GL.PixelStore(PixelStoreParameter.UnpackAlignment, 1);
-		face.SelectCharmap(Encoding.Unicode);
+		//face.SelectCharmap(Encoding.Unicode);
 
 		GL.PixelStore(PixelStoreParameter.UnpackAlignment, 4);
 
@@ -182,7 +164,7 @@ public class Label : IRenderObject
 		GL.BindBuffer(BufferTarget.ArrayBuffer, VBO);
 		GL.BufferData(BufferTarget.ArrayBuffer, 4 * 6 * 4, vquad, BufferUsageHint.StaticDraw);
 
-		VAO = GL.GenVertexArray();
+		VAO = GL.GenVertexArray();/*
 		if (!_characters.ContainsKey(this)) _characters.Add(this, new Dictionary<uint, Character>());
 		foreach (char character in Text)
 		{
@@ -191,7 +173,7 @@ public class Label : IRenderObject
 				var f = new Texture(this, character, PixelHeight, face);
 				f.LoadText();
 			}
-		}
+		}*/
 		GL.BindVertexArray(VAO);
 		GL.EnableVertexAttribArray(0);
 		GL.VertexAttribPointer(0, 2, VertexAttribPointerType.Float, false, 4 * 4, 0);
@@ -200,15 +182,15 @@ public class Label : IRenderObject
 
 		GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
 		GL.BindVertexArray(0);
-		Text = text;
-		loadd = true;
+		
+		Loaded = true;
+		Text = Text;
 		Location = Location;
 		Distance = new(window.Size.X - Size.X - Location.X, window.Size.Y - Size.Y - Location.Y);
 	}
 
-	private bool loadd = false;
 
 	public event Func<IRenderObject, Task>? Clicked;
 
-	public bool Loaded => loadd;
+	public bool Loaded { get; private set; } = false;
 }

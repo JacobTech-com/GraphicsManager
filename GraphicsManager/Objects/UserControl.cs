@@ -1,5 +1,6 @@
 ﻿using GraphicsManager.Enums;
 using GraphicsManager.Interfaces;
+using GraphicsManager.Objects.Core;
 using OpenTK.Mathematics;
 using OpenTK.Windowing.Common;
 
@@ -23,7 +24,7 @@ public class UserControl : IRenderObject, IParent
 
 	public ICollection<IRenderObject> Controls { get; } = new List<IRenderObject>();
 	public ObjectAnchor Anchor { get => _bounds.Anchor; set => _bounds.Anchor = value; }
-	public Vector4 Color { get => _bounds.Color; set => _bounds.Color = value; }
+	public Uniforms Uniforms { get => _bounds.Uniforms; }
 	public bool Visible { get => _bounds.Visible; set => _bounds.Visible = value; }
 	public Vector2i Size { get => _bounds.Size; set => _bounds.Size = value; }
 	public Vector2 SizeAsFloat { get => _bounds.SizeAsFloat; }
@@ -39,18 +40,19 @@ public class UserControl : IRenderObject, IParent
 	public Window? Window { get; private set; }
 	public bool Loaded { get; private set; } = false;
 
-	public Vector2 MousePosition => throw new NotImplementedException();
+	public Vector2 MousePosition => Window!.MousePosition;
 
 	public void LoadToParent(IParent Parent, Window Window)
 	{
+		if (Loaded) return;
 		this.Parent = Parent;
 		this.Window = Window;
+		Loaded = true;
 		_bounds.LoadToParent(Parent, Window);
 		foreach (IRenderObject obj in Controls) 
 		{
 			obj.LoadToParent(this, Window);
 		}
-		Loaded = true;
 	}
 
 	public void Draw()
@@ -83,7 +85,7 @@ public class UserControl : IRenderObject, IParent
 		_bounds.Clean();
 	}
 
-	public void Resize(ResizeEventArgs e)
+	public void ParentResize(ResizeEventArgs e)
 	{
 		if (e.Width == 0 && e.Height == 0) return;
 		foreach (IRenderObject Control in Controls)
@@ -102,6 +104,10 @@ public class UserControl : IRenderObject, IParent
 				int sx = (right ? Size.X - Control.Distance.X - lx : Control.Size.X);
 				Control.Size = new(sx, sy);
 				Control.Location = new(lx, ly);
+				if (Control is IParent parent)
+				{
+					parent.ParentResize(e);
+				}
 			}
 		}
 	}
@@ -129,9 +135,21 @@ public class UserControl : IRenderObject, IParent
 		}
 	}
 
+	public Vector3 PointToVector(int x, int y, float z = 0.0f)
+	{
+		return new Vector3(IntToFloat(x), IntToFloat(y, true), z);
+	}
+
 	public float IntToFloat(int p, bool Invert = false)
 	{
-		int Size = (Invert ? this.Size.Y : this.Size.X);
+		p += (Invert ? Location.Y : Location.X);
+		IParent? tempp = Parent;
+		while (tempp is not null)
+		{
+			p += (Invert ? tempp.Position.Y : tempp.Position.X);
+			tempp = tempp.Parent;
+		}
+		int Size = (Invert ? Window!.Size.Y : Window!.Size.X);
 		double half = Math.Round((double)Size / (double)2, 1);
 		double Per = Math.Round((double)1 / half, 15);
 		if (p == half) return 0.0f;
@@ -149,7 +167,15 @@ public class UserControl : IRenderObject, IParent
 
 	public float FloatToInt(float p, bool Invert = false)
 	{
-		int Size = (Invert ? this.Size.Y : this.Size.X);
+		p += (Invert ? LocationAsFloat.Y : LocationAsFloat.X);
+		IParent? tempp = Parent;
+		while (tempp is not null)
+		{
+			p += (Invert ? tempp.LocationAsFloat.Y : tempp.LocationAsFloat.X);
+			tempp = tempp.Parent;
+		}
+
+		int Size = (Invert ? Window!.Size.Y : Window!.Size.X);
 		double half = Math.Round((double)Size / (double)2, 15);
 		if (p == 0) return (int)half;
 		if (Invert)

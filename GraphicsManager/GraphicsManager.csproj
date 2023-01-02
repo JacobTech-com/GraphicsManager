@@ -1,20 +1,38 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <TargetFramework>net6.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-  </PropertyGroup>
+    <PropertyGroup>
+        <TargetFramework>net6.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <FileVersion>1.0.0.0</FileVersion>
+        <Authors>JacobTech</Authors>
+        <Company>JacobTech, LLC</Company>
+        <IncludeSymbols>False</IncludeSymbols>
+        <RepositoryUrl>https://github.com/JacobTech-com/GraphicsManager</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
+        <Version>1.0.0-alpha2</Version>
+    </PropertyGroup>
 
-  <ItemGroup>
-	<EmbeddedResource Include="Resources/**"></EmbeddedResource>
-  </ItemGroup>
+    <ItemGroup>
+        <EmbeddedResource Include="Resources/**"></EmbeddedResource>
+    </ItemGroup>
 
-  <ItemGroup>
-	<PackageReference Include="OpenTK" Version="4.7.1" />
-	<PackageReference Include="SharpFontCore" Version="0.1.1" />
-	<PackageReference Include="SixLabors.ImageSharp" Version="1.0.4" />
-	<PackageReference Include="SpaceWizards.SharpFont" Version="1.0.1" />
-  </ItemGroup>
-	
+    <ItemGroup>
+        <Content Include="freetype6.dll">
+            <Pack>true</Pack>
+            <PackagePath>lib\$(TargetFramework)</PackagePath>
+        </Content>
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="OpenTK" Version="4.7.1" />
+        <PackageReference Include="SixLabors.ImageSharp" Version="1.0.4" />
+        <PackageReference Include="SpaceWizards.SharpFont" Version="1.0.1" />
+    </ItemGroup>
+
+    <Target Name="CustomActionsAfterPack" AfterTargets="Pack">
+        <Message Text="Actions AfterPack: $(PackageId).$(PackageVersion).nupkg" Importance="high" />
+        <Exec Command="nuget push -Source https://nuget.jacobtech.com/v3/index.json bin/Release/$(PackageId).$(PackageVersion).nupkg" />
+    </Target>
+
 </Project>

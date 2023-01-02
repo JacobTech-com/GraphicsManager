@@ -3,6 +3,7 @@ using GraphicsManager.Interfaces;
 using GraphicsManager.Objects.Core;
 using OpenTK.Graphics.OpenGL4;
 using OpenTK.Mathematics;
+using OpenTK.Windowing.GraphicsLibraryFramework;
 
 namespace GraphicsManager.Objects;
 
@@ -31,17 +32,32 @@ public class Rectangle : ITextureObject
 		}
 	}
 
-	public Vector4 Color { get; set; }
+	public Uniforms Uniforms { get; } = new() { Uniform4 = new() { new() { Location = 0, Value = new(0,0,0,1) } } };
 
 	public bool Visible { get; set; } = true;
 
 	public void Draw()
 	{
-		if (Visible)
+		if (Visible && Loaded)
 		{
 			if (Texture is not null) Texture.Use();
 			Shader.Use();
-			GL.Uniform4(0, Color);
+			for (int i = 0; i < Uniforms.Uniform4.Count; i++)
+			{
+				GL.Uniform4(Uniforms.Uniform4[i].Location, Uniforms.Uniform4[i].Value);
+			}
+			for (int i = 0; i < Uniforms.Uniform3.Count; i++)
+			{
+				GL.Uniform3(Uniforms.Uniform3[i].Location, Uniforms.Uniform3[i].Value);
+			}
+			for (int i = 0; i < Uniforms.Uniform2.Count; i++)
+			{
+				GL.Uniform2(Uniforms.Uniform2[i].Location, Uniforms.Uniform2[i].Value);
+			}
+			for (int i = 0; i < Uniforms.Uniform1.Count; i++)
+			{
+				GL.Uniform1(Uniforms.Uniform1[i].Location, Uniforms.Uniform1[i].Value);
+			}
 			if (Texture is not null)
 			{
 				GL.Enable(EnableCap.Blend);
@@ -62,6 +78,7 @@ public class Rectangle : ITextureObject
 
 	public void LoadToParent(IParent Parent, Window Window)
 	{
+		if (Loaded) return;
 		this.Parent = Parent;
 		this.Window = Window;
 		int pos = Points.Length - 3;
@@ -88,9 +105,7 @@ public class Rectangle : ITextureObject
 		ElementBufferObject = GL.GenBuffer();
 		GL.BindBuffer(BufferTarget.ElementArrayBuffer, ElementBufferObject);
 		GL.BufferData(BufferTarget.ElementArrayBuffer, Indexs.Length * sizeof(uint), Indexs, Hint);
-		load = true;
-		loadd = true;
-		
+		Loaded = true;
 		Window.MouseDown += Window_MouseDown;
 		Location = Location;
 		Distance = new(Parent.Size.X - Size.X - Location.X, Parent.Size.Y - Size.Y - Location.Y);
@@ -101,7 +116,14 @@ public class Rectangle : ITextureObject
 
 	private void Window_MouseDown(OpenTK.Windowing.Common.MouseButtonEventArgs e)
 	{
-		if (Clicked is not null && e.Button == OpenTK.Windowing.GraphicsLibraryFramework.MouseButton.Button1 && Location.X <= Parent?.MousePosition.X && Size.X + Location.X >= Parent?.MousePosition.X && Location.Y + Size.Y >= Parent?.MousePosition.Y && Location.Y <= Parent?.MousePosition.Y) Clicked.Invoke(this);
+		if (e.Button == MouseButton.Button1 &&
+			Parent?.IntToFloat(Location.X) <= Parent?.IntToFloat((int)Parent?.MousePosition.X!) &&
+			Parent?.IntToFloat(Size.X + Location.X) >= Parent?.IntToFloat((int)Parent?.MousePosition.X!) &&
+			Parent?.IntToFloat(Location.Y + Size.Y, true) <= Parent?.IntToFloat((int)Parent?.MousePosition.Y!, true) &&
+			Parent?.IntToFloat(Location.Y, true) >= Parent?.IntToFloat((int)Parent?.MousePosition.Y!, true))
+		{
+			if (Clicked is not null) Clicked.Invoke(this);
+		}
 	}
 
 	~Rectangle()
@@ -116,7 +138,6 @@ public class Rectangle : ITextureObject
 	public int ArrayObject { get; private set; }
 	private float[] Points_;
 	private Vector2i size_ = new(), loc_ = new();
-	bool load = false;
 
 	public float[] Points
 	{
@@ -129,7 +150,7 @@ public class Rectangle : ITextureObject
 			Points_ = value;
 			try
 			{
-				if (load)
+				if (Loaded)
 				{
 					int add = 3;
 					if (Texture is not null) add = 5;
@@ -142,6 +163,7 @@ public class Rectangle : ITextureObject
 					GL.BindVertexArray(ArrayObject);
 					GL.BindBuffer(BufferTarget.ElementArrayBuffer, ElementBufferObject);
 					GL.BufferData(BufferTarget.ElementArrayBuffer, Indexs.Length * sizeof(uint), Indexs, Hint);
+					if (Window is not null && Window.CanControleUpdate && Loaded) Window.DrawFrame();
 				}
 			}
 			catch (AccessViolationException v)
@@ -154,11 +176,10 @@ public class Rectangle : ITextureObject
 	public uint[] Indexs { get; set; } = new uint[6] { 0, 1, 3, 1, 2, 3 };
 	public BufferUsageHint Hint { get; set; } = BufferUsageHint.StaticDraw;
 
-	private bool loadd = false;
 
 	public event Func<IRenderObject, Task>? Clicked;
 
-	public bool Loaded => loadd;
+	public bool Loaded { get; private set; } = false;
 	public Vector2i Distance { get; private set; }
 
 	public Vector2i Size
@@ -172,7 +193,7 @@ public class Rectangle : ITextureObject
 			size_ = value;
 			if (Window is null || Parent is null) return;
 			float[] temp = Points;
-			saf = new Vector2(Window.IntToFloat(value.X + loc_.X + Parent.Position.X, false), Window.IntToFloat(value.Y + loc_.Y + Parent.Position.Y, true));
+			saf = new Vector2(Parent.IntToFloat(value.X + loc_.X, false), Parent.IntToFloat(value.Y + loc_.Y, true));
 			temp[0] = saf.X;
 			temp[(Texture is null ? 3 : 5)] = saf.X;
 			temp[(Texture is null ? 4 : 6)] = saf.Y;
@@ -192,12 +213,12 @@ public class Rectangle : ITextureObject
 			loc_ = value;
 			if (Window is null || Parent is null) return;
 			float[] temp = Points;
-			laf = new Vector2(Window.IntToFloat(value.X + Parent.Position.X, false), Window.IntToFloat(value.Y + Parent.Position.Y, true));
+			laf = new Vector2(Parent.IntToFloat(value.X, false), Parent.IntToFloat(value.Y, true));
 			temp[(Texture is null ? 6 : 10)] = laf.X;
 			temp[(Texture is null ? 9 : 15)] = laf.X;
 			temp[1] = laf.Y;
 			temp[(Texture is null ? 10 : 16)] = laf.Y;
-			saf = new Vector2(Window.IntToFloat(Size.X + value.X + Parent.Position.X, false), Window.IntToFloat(Size.Y + value.Y + Parent.Position.Y, true));
+			saf = new Vector2(Parent.IntToFloat(Size.X + value.X, false), Parent.IntToFloat(Size.Y + value.Y, true));
 			temp[0] = saf.X;
 			temp[(Texture is null ? 3 : 5)] = saf.X;
 			temp[(Texture is null ? 4 : 6)] = saf.Y;
